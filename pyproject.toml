@@ -9,7 +9,7 @@ description = "Validate passport and ID card MRZ check digits (ICAO 9303: TD1, T
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Ali Ahmed" }]
 keywords = ["mrz", "passport", "icao", "icao-9303", "check-digit", "ocr", "kyc", "id-card"]
 classifiers = [
