@@ -50,6 +50,35 @@ mrz-checkdigit 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<' 'L898902C36UTO7408
 
 Lines can also be piped on stdin. Exit code is `0` when every digit matches, `1` when one fails, `2` for an unrecognised layout.
 
+## Repairing OCR misreads
+
+OCR confuses `O`/`0`, `I`/`1`, `B`/`8`, `S`/`5` and `Z`/`2`. Fields that can only contain digits can be mapped back directly; alphanumeric fields such as the document number can be repaired by trying confusable swaps against the check digit:
+
+```python
+from mrz_checkdigit import fix_numeric, repair
+
+fix_numeric("74O8I2")          # '740812'
+repair("L8989O2C3", "6")       # 'L898902C3': O read for 0, one repair fits
+repair("L898902C3", "6")       # 'L898902C3': already valid, left alone
+repair("AB5O8I23S", "0")       # None: two equally good repairs, so ask for a new photo
+```
+
+A single check digit lets about one wrong reading in ten pass, so `repair` only returns a result when exactly one candidate needs the fewest changes. Why that rule matters: [Correcting MRZ OCR errors with check digits](https://aliahmed.si/blog/mrz-ocr-error-correction/).
+
+## Dates
+
+MRZ dates are `YYMMDD`, so the century has to be inferred:
+
+```python
+from datetime import date
+from mrz_checkdigit import birth_date, expiry_date
+
+birth_date("740812", date(2026, 11, 18))   # 1974-08-12: a birth date can't be in the future
+expiry_date("350101", date(2026, 11, 18))  # 2035-01-01: the century closest to today
+```
+
+People born more than 100 years ago are read as infants; compare with the four-digit year in the visual zone if that matters. Details: [Parsing MRZ dates of birth and expiry correctly](https://aliahmed.si/blog/mrz-date-century-expiry/).
+
 ## The algorithm
 
 Each character becomes a number (digits keep their value, `A`–`Z` = 10–35, `<` = 0), is multiplied by the repeating weights 7, 3, 1, and the check digit is the sum modulo 10.

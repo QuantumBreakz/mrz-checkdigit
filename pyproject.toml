@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mrz-checkdigit"
 dynamic = ["version"]
-description = "Validate passport and ID card MRZ check digits (ICAO 9303: TD1, TD2, TD3)"
+description = "Validate passport and ID card MRZ check digits (ICAO 9303: TD1, TD2, TD3), repair OCR misreads, and parse MRZ dates"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -24,6 +24,9 @@ classifiers = [
 [project.urls]
 Homepage = "https://aliahmed.si/"
 Documentation = "https://aliahmed.si/blog/passport-mrz-check-digits/"
+"OCR error correction" = "https://aliahmed.si/blog/mrz-ocr-error-correction/"
+"MRZ dates" = "https://aliahmed.si/blog/mrz-date-century-expiry/"
+"KYC pipeline" = "https://aliahmed.si/blog/how-kyc-identity-verification-works/"
 Source = "https://github.com/QuantumBreakz/mrz-checkdigit"
 Issues = "https://github.com/QuantumBreakz/mrz-checkdigit/issues"
 

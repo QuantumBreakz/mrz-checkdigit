@@ -9,10 +9,22 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date
+from itertools import product
 from typing import NamedTuple, Sequence
 
-__all__ = ["CheckResult", "check_digit", "validate", "is_valid", "main"]
-__version__ = "0.1.0"
+__all__ = [
+    "CheckResult",
+    "check_digit",
+    "validate",
+    "is_valid",
+    "fix_numeric",
+    "repair",
+    "birth_date",
+    "expiry_date",
+    "main",
+]
+__version__ = "0.2.0"
 
 _WEIGHTS = (7, 3, 1)
 
@@ -88,6 +100,83 @@ def validate(lines: Sequence[str]) -> list[CheckResult]:
 def is_valid(lines: Sequence[str]) -> bool:
     """True if every check digit in the MRZ matches."""
     return all(r.ok for r in validate(lines))
+
+
+# Characters OCR commonly confuses in the OCR-B font.
+_TO_DIGIT = {"O": "0", "Q": "0", "D": "0", "I": "1", "L": "1", "Z": "2", "S": "5", "B": "8", "G": "6"}
+_TO_LETTER = {"0": "O", "1": "I", "2": "Z", "5": "S", "8": "B", "6": "G"}
+
+
+def fix_numeric(field: str) -> str:
+    """Map letters OCR misread in a digits-only field (dates, check digits) back to digits: '74O8I2' -> '740812'."""
+    return "".join(_TO_DIGIT.get(ch, ch) for ch in field.upper())
+
+
+def repair(field: str, printed_check: str, max_changes: int = 2) -> str | None:
+    """Repair an OCR-misread alphanumeric field (such as a document number) using its check digit.
+
+    Returns the field unchanged if it already passes, the single candidate that passes with the fewest
+    confusable swaps, or None when no candidate or more than one equally good candidate exists. A single
+    check digit lets about one wrong reading in ten pass, so ambiguous cases are refused rather than guessed.
+    """
+    field = field.upper()
+    expected = fix_numeric(printed_check)
+    if str(check_digit(field)) == expected:
+        return field
+    options = []
+    for ch in field:
+        alts = {ch}
+        if ch in _TO_DIGIT:
+            alts.add(_TO_DIGIT[ch])
+        if ch in _TO_LETTER:
+            alts.add(_TO_LETTER[ch])
+        options.append(sorted(alts))
+    best: dict[int, list[str]] = {}
+    for candidate in product(*options):
+        changes = sum(a != b for a, b in zip(candidate, field))
+        if 0 < changes <= max_changes and str(check_digit("".join(candidate))) == expected:
+            best.setdefault(changes, []).append("".join(candidate))
+    if not best:
+        return None
+    fewest = best[min(best)]
+    return fewest[0] if len(fewest) == 1 else None
+
+
+def _dates(yymmdd: str, centuries: Sequence[int]) -> list[date]:
+    yymmdd = fix_numeric(yymmdd)
+    if len(yymmdd) != 6 or not yymmdd.isdigit():
+        raise ValueError(f"not a YYMMDD date: {yymmdd!r}")
+    yy, mm, dd = int(yymmdd[:2]), int(yymmdd[2:4]), int(yymmdd[4:])
+    out = []
+    for c in centuries:
+        try:
+            out.append(date(c + yy, mm, dd))
+        except ValueError:  # e.g. 29 February in a century year that isn't a leap year
+            pass
+    if not out:
+        raise ValueError(f"not a valid date: {yymmdd!r}")
+    return out
+
+
+def birth_date(yymmdd: str, today: date | None = None) -> date:
+    """Date of birth from an MRZ YYMMDD field: this century unless that would be in the future.
+
+    People born more than 100 years ago are read as infants; compare with the four-digit year
+    in the document's visual zone when that matters.
+    """
+    today = today or date.today()
+    century = today.year // 100 * 100
+    candidates = [d for d in _dates(yymmdd, (century, century - 100)) if d <= today]
+    if not candidates:
+        raise ValueError(f"birth date in the future: {yymmdd!r}")
+    return candidates[0]
+
+
+def expiry_date(yymmdd: str, today: date | None = None) -> date:
+    """Expiry date from an MRZ YYMMDD field: the century that puts it closest to today."""
+    today = today or date.today()
+    century = today.year // 100 * 100
+    return min(_dates(yymmdd, (century - 100, century, century + 100)), key=lambda d: abs((d - today).days))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
